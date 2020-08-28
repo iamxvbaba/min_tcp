@@ -1,0 +1,67 @@
+syntax = "proto3";
+package api;
+option go_package = ".;api";
+
+enum OP {
+  error = 0;
+
+  open = 1;
+  packet = 2;
+  close = 3;
+  heartbeat = 4;
+  ack = 5;
+  message = 7;
+  data = 8;
+  handshake = 9;
+  flush = 10;
+  packetCreate = 11;
+
+  drain = 12;
+
+  //Client Internal events (blacklisted).
+  //These events can't be emitted by the user.
+  connect = 13;
+  connect_error = 14;
+  connect_timeout = 15;
+  connecting = 16;
+  disconnect = 17;
+  reconnect = 18;
+  reconnect_attempt = 19;
+  reconnect_failed = 20;
+  reconnect_error = 21;
+  reconnecting = 22;
+  disconnecting = 23;
+  ping = 24;
+  pong = 25;
+
+
+
+  //dh 密钥交换
+  reqPQ = 101;
+  resPQ = 102;
+  reqDHParams = 103;
+  resDHParamsOK = 104;
+  clientDHParams = 105;
+  dhGenResult = 106;
+}
+
+// 最外层的结构
+message Proto {
+  uint32 from = 1; // 客户端奇数，服务端返回的为偶数
+  int64 seq = 3;// 每条消息的ID
+  bytes data = 4; // 其他proto对象
+  OP op = 2;   // 请求的操作
+  bytes AuthKeyHash = 5; //通过认证得到的
+}
+
+// 服务端统一返回的结构体，填充到Proto.data
+message Response {
+  int32 code = 1;
+  string msg = 2;
+  bytes data = 3; //protobuf对象
+}
+
+// 参数只有id的时候,都使用这个结构
+message ID {
+  repeated int64 ids = 1;
+}
