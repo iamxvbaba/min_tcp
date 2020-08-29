@@ -1,6 +1,8 @@
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:logging/logging.dart';
+import 'package:min_tcp/proto/abridged.pb.dart';
 import '../proto/abridged.pbenum.dart';
 import 'operator.dart';
 
@@ -29,7 +31,9 @@ abstract class Transport extends EventEmitter {
   /// @api public
   void onError(msg, [desc]) {
     if (hasListeners(OP.error)) {
-      emit(OP.error, {'msg': msg, 'desc': desc, 'type': 'TransportError'});
+      Proto p = new Proto();
+      p.op = OP.error;
+      emit(OP.error, p);
     } else {
       _logger.fine('ignored transport error $msg ($desc)');
     }
@@ -91,8 +95,12 @@ abstract class Transport extends EventEmitter {
 
   ///
   /// Called with a decoded packet.
-  void onPacket(packet) {
-    emit(OP.packet, packet);
+  void onPacket(Uint8List data) {
+    ByteData dataBuffer = ByteData.view(data.buffer);
+    int length = dataBuffer.getUint32(0);
+    Proto p = Proto.fromBuffer(data.sublist(4,4+length));
+
+    emit(OP.packet, p);
   }
 
   ///

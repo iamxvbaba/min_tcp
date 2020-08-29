@@ -35,7 +35,6 @@ enum OP {
   pong = 25;
 
 
-
   //dh 密钥交换
   reqPQ = 101;
   resPQ = 102;
@@ -52,6 +51,8 @@ message Proto {
   bytes data = 4; // 其他proto对象
   OP op = 2;   // 请求的操作
   bytes AuthKeyHash = 5; //通过认证得到的
+  int32 pingInterval=6;
+  int32 pingTimeout=7;
 }
 
 // 服务端统一返回的结构体，填充到Proto.data

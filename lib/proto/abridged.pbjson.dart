@@ -50,6 +50,8 @@ const Proto$json = const {
     const {'1': 'data', '3': 4, '4': 1, '5': 12, '10': 'data'},
     const {'1': 'op', '3': 2, '4': 1, '5': 14, '6': '.api.OP', '10': 'op'},
     const {'1': 'AuthKeyHash', '3': 5, '4': 1, '5': 12, '10': 'AuthKeyHash'},
+    const {'1': 'pingInterval', '3': 6, '4': 1, '5': 5, '10': 'pingInterval'},
+    const {'1': 'pingTimeout', '3': 7, '4': 1, '5': 5, '10': 'pingTimeout'},
   ],
 };
 

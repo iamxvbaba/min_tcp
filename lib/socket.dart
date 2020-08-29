@@ -1,7 +1,7 @@
 import 'package:logging/logging.dart';
 import 'package:min_tcp/proto/abridged.pb.dart';
 import 'package:min_tcp/proto/abridged.pbenum.dart';
-
+import 'package:fixnum/fixnum.dart' as $fixnum;
 import 'engine/operator.dart';
 import './on.dart' as util;
 import 'manager.dart';
@@ -50,7 +50,7 @@ class Socket extends EventEmitter {
   String query;
   List subs;
   Map flags;
-  String id;
+  num id;
 
   Socket(this.io, this.hostname,this.port, this.opts) {
     json = this; // compat
@@ -122,7 +122,7 @@ class Socket extends EventEmitter {
   ///
   /// @return {Socket} self
   /// @api public
-  void emitWithAck(OP event, dynamic data,
+  void emitWithAck(OP event, Proto data,
       {Function ack, bool binary = false}) {
     if (EVENTS.contains(event)) {
       super.emit(event, data);
@@ -130,20 +130,15 @@ class Socket extends EventEmitter {
       var sendData = <dynamic>[event];
       sendData.add(data);
 
-      var packet = {
-        'data': sendData,
-        'options': {}
-      };
-
       // event ack callback
       if (ack != null) {
         _logger.fine('emitting packet with ack id $ids');
         acks['${ids}'] = ack;
-        packet['id'] = '${ids++}';
+        data.seq = $fixnum.Int64(ids++);
       }
 
       if (connected == true) {
-        this.packet(packet);
+        this.packet(data);
       } else {
         sendBuffer.add(packet);
       }
@@ -156,8 +151,8 @@ class Socket extends EventEmitter {
   ///
   /// @param {Object} packet
   /// @api private
-  void packet(Map packet) {
-    io.packet(packet);
+  void packet(Proto p) {
+    io.packet(p);
   }
 
   ///
@@ -165,13 +160,7 @@ class Socket extends EventEmitter {
   ///
   /// @api private
   void onopen([_]) {
-    _logger.fine('transport is open - connecting');
-    // write connect packet if necessary
-    Proto p = new Proto();
-    p.op = OP.connect;
-    packet({
-      'type':OP.connect
-    });
+    print('transport is open - connecting');
   }
 
   ///
@@ -193,10 +182,9 @@ class Socket extends EventEmitter {
   ///
   /// @param {Object} packet
   /// @api private
-  void onpacket(packet) {
-    if (packet['nsp'] != hostname) return;
-
-    switch (packet['type']) {
+  void onpacket(Proto packet) {
+    print("data来了");
+    switch (packet.op) {
       case OP.connect:
         onconnect();
         break;
@@ -222,7 +210,7 @@ class Socket extends EventEmitter {
         break;
 
       case OP.error:
-        emit(OP.error, packet['data']);
+        emit(OP.error, packet);
         break;
     }
   }
@@ -232,25 +220,8 @@ class Socket extends EventEmitter {
   ///
   /// @param {Object} packet
   /// @api private
-  void onevent(Map packet) {
-    List args = packet['data'] ?? [];
-//    debug('emitting event %j', args);
+  void onevent(Proto packet) {
 
-    if (null != packet['id']) {
-//      debug('attaching ack callback to event');
-      args.add(ack(packet['id']));
-    }
-
-    // dart doesn't support "String... rest" syntax.
-    if (connected == true) {
-      if (args.length > 2) {
-        Function.apply(super.emit, [args.first, args.sublist(1)]);
-      } else {
-        Function.apply(super.emit, args);
-      }
-    } else {
-      receiveBuffer.add(args);
-    }
   }
 
   ///
@@ -264,12 +235,10 @@ class Socket extends EventEmitter {
       if (sent) return;
       sent = true;
       _logger.fine('sending ack $_');
-
-      packet({
-        'type': OP.ack,
-        'id': id,
-        'data': [_]
-      });
+      Proto data = new Proto();
+      data.op = OP.ack;
+      data.seq = $fixnum.Int64(id);
+      packet(data);
     };
   }
 
@@ -278,20 +247,13 @@ class Socket extends EventEmitter {
   ///
   /// @param {Object} packet
   /// @api private
-  void onack(Map packet) {
-    var ack = acks.remove(packet['id']);
+  void onack(Proto packet) {
+    var ack = acks.remove(packet.seq);
     if (ack is Function) {
-      _logger.fine('''calling ack ${packet['id']} with ${packet['data']}''');
-
-      var args = packet['data'] as List;
-      if (args.length > 1) {
-        // Fix for #42 with nodejs server
-        Function.apply(ack, [args]);
-      } else {
-        Function.apply(ack, args);
-      }
+      print("calling ack ${packet.seq}");
+      Function.apply(ack, packet.data);
     } else {
-      _logger.fine('''bad ack ${packet['id']}''');
+      print("bad ack ${packet.seq}");
     }
   }
 
@@ -335,7 +297,7 @@ class Socket extends EventEmitter {
   void ondisconnect() {
     _logger.fine('server disconnect (${hostname})');
     destroy();
-    onclose('io server disconnect');
+    onclose(null); //'io server disconnect'
   }
 
   ///
@@ -367,7 +329,9 @@ class Socket extends EventEmitter {
   Socket disconnect() {
     if (connected == true) {
       _logger.fine('performing disconnect (${hostname})');
-      packet({'type': OP.disconnect});
+      Proto p = new Proto();
+      p.op = OP.disconnect;
+      packet(p);
     }
 
     // remove socket from pool
@@ -375,7 +339,7 @@ class Socket extends EventEmitter {
 
     if (connected == true) {
       // fire events
-      onclose('io client disconnect');
+      onclose(null); // 'io client disconnect'
     }
     return this;
   }

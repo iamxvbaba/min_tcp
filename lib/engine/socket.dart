@@ -26,10 +26,10 @@ class Socket extends EventEmitter {
   var timestampRequests;
 
   String readyState;
-  List writeBuffer;
+  List<int> writeBuffer;
   int prevBufferLen;
   var binaryType;
-  String id;
+  List<int> id;
   int pingInterval;
   int pingTimeout;
   Timer pingIntervalTimer;
@@ -38,7 +38,11 @@ class Socket extends EventEmitter {
   Transport transport;
   bool supportsBinary;
 
-  Socket(this.hostname,this.port, this.opts) {
+  Socket(this.hostname, this.port, this.opts) {
+    readyState = '';
+    writeBuffer = [];
+    prevBufferLen = 0;
+
     open();
   }
 
@@ -87,12 +91,14 @@ class Socket extends EventEmitter {
     this.transport = transport;
 
     // set up transport listeners
+    // 注册底层tcp监听的事件
     transport
       ..on(OP.drain, (_) => onDrain())
       ..on(OP.packet, (packet) => onPacket(packet))
       ..on(OP.error, (e) => onError(e))
       ..on(OP.close, (_) => onClose('transport close'));
   }
+
   ///
   /// Called on `drain` event
   ///
@@ -124,36 +130,32 @@ class Socket extends EventEmitter {
   }
 
   /// Handles a packet.
-  void onPacket(Map packet) {
+  void onPacket(Proto p) {
     if ('opening' == readyState ||
         'open' == readyState ||
         'closing' == readyState) {
-      var type = packet['type'];
-      var data = packet['data'];
-      _logger.fine('socket receive: type "$type", data "$data"');
 
-      emit(OP.packet, packet);
 
-      // Socket is live - any packet counts
+      emit(OP.packet, p);
+      // Socket 接收到任何数据都表明为存活着
       emit(OP.heartbeat);
 
-      switch (type) {
+      switch (p.op) {
         case OP.open:
-          onHandshake(json.decode(data ?? 'null'));
+          onHandshake(p ?? 'null');
           break;
-
         case OP.pong:
           setPing();
           emit(OP.pong);
           break;
 
         case OP.error:
-          onError({'error': 'server error', 'code': data});
+          onError({'error': 'server error'});
           break;
 
         case OP.message:
-          emit(OP.data, data);
-          emit(OP.message, data);
+          emit(OP.data, p);
+          emit(OP.message, p);
           break;
       }
     } else {
@@ -163,17 +165,18 @@ class Socket extends EventEmitter {
 
   ///
   /// Called upon handshake completion.
-  ///
+  /// TODO: dh密钥
   /// @param {Object} handshake obj
   /// @api private
-  void onHandshake(Map data) {
-    emit(OP.handshake, data);
-    id = data['sid'];
-    pingInterval = data['pingInterval'];
-    pingTimeout = data['pingTimeout'];
+  void onHandshake(Proto p) {
+    emit(OP.handshake, p);
+    id = p.authKeyHash;
+    pingInterval = p.pingInterval !=0 ? p.pingInterval : 5000;
+    pingTimeout = p.pingTimeout !=0 ? p.pingTimeout : 6000;
     onOpen();
     // In case open handler closes socket
     if ('closed' == readyState) return;
+
     setPing();
 
     // Prolong liveness of socket on heartbeat
@@ -190,6 +193,9 @@ class Socket extends EventEmitter {
     pingTimeoutTimer = Timer(
         Duration(milliseconds: timeout ?? (pingInterval + pingTimeout)), () {
       if ('closed' == readyState) return;
+
+      print("===ping timeout===");
+
       onClose('ping timeout');
     });
   }
@@ -202,9 +208,9 @@ class Socket extends EventEmitter {
   void setPing() {
     pingIntervalTimer?.cancel();
     pingIntervalTimer = Timer(Duration(milliseconds: pingInterval), () {
-      _logger
-          .fine('writing ping packet - expecting pong within ${pingTimeout}ms');
+      print('writing ping packet - expecting pong within ${pingTimeout}ms');
       ping();
+
       onHeartbeat(pingTimeout);
     });
   }
@@ -219,7 +225,6 @@ class Socket extends EventEmitter {
     sendPacket(p: p, callback: (_) => emit(OP.ping));
   }
 
-
   ///
   /// Flush write buffers.
   ///
@@ -228,7 +233,7 @@ class Socket extends EventEmitter {
     if ('closed' != readyState &&
         transport.writable == true &&
         writeBuffer.isNotEmpty) {
-      _logger.fine('flushing ${writeBuffer.length} packets in socket');
+
       transport.send(writeBuffer);
       // keep track of current length of writeBuffer
       // splice writeBuffer and callbackBuffer on `drain`
@@ -270,10 +275,13 @@ class Socket extends EventEmitter {
     ByteData lengthSizeBuf = new ByteData(4);
     lengthSizeBuf.setUint32(0, dataByte.lengthInBytes); // 数据长度
     // 转化为[]byte发送
-    List data = lengthSizeBuf.buffer.asUint8List() + dataByte.buffer.asUint8List();
+    List<int> data =
+        lengthSizeBuf.buffer.asUint8List() + dataByte.buffer.asUint8List();
 
+    print('protobuf的data:$data');
     emit(OP.packetCreate, data);
-    writeBuffer.add(data);
+
+    writeBuffer.addAll(data);
     if (callback != null) once(OP.flush, callback);
     flush();
   }
@@ -288,6 +296,14 @@ class Socket extends EventEmitter {
       _logger.fine('socket closing - telling transport to close');
       transport.close();
     };
+    print("close --> readyState:$readyState, writeBuffer:$writeBuffer");
+    if ('opening' == readyState || 'open' == readyState) {
+      readyState = 'closing';
+      if (writeBuffer.isNotEmpty) {
+        //TODO:
+      }
+      close();
+    }
     return this;
   }
 
@@ -331,7 +347,9 @@ class Socket extends EventEmitter {
       id = null;
 
       // emit close event
-      emit(OP.close, {'reason': reason, 'desc': desc});
+      Proto p = new Proto();
+      p.op = OP.close;
+      emit(OP.close,p);
 
       // clean buffers after, so users can still
       // grab the buffers on `close` event

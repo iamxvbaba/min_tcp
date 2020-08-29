@@ -1,10 +1,11 @@
 import 'dart:collection' show HashMap;
 
+import 'package:min_tcp/proto/abridged.pb.dart';
 import 'package:min_tcp/proto/abridged.pbenum.dart';
 
 
 ///  Handler type for handling the event emitted by an [EventEmitter].
-typedef dynamic EventHandler<T>(T data);
+typedef void EventHandler(Proto data);
 
 // Generic event emitting and handling
 class EventEmitter {
@@ -23,6 +24,7 @@ class EventEmitter {
   /// This function triggers all the handlers currently listening
   /// to [event] and passes them [data].
   void emit(OP op, [dynamic data]) {
+    print("this:$this op:$op");
     final list0 = this._events[op];
     final list = list0 != null ? new List.from(list0) : null;
     list?.forEach((handler) {
@@ -36,7 +38,6 @@ class EventEmitter {
 
   /// This function binds the [handler] as a listener to the [event]
   void on(OP op, EventHandler handler) {
-    print("event:$op");
     this._events.putIfAbsent(op, () => new List<EventHandler>());
     this._events[op].add(handler);
   }

@@ -21,6 +21,8 @@ class Proto extends $pb.GeneratedMessage {
     ..aInt64(3, 'seq')
     ..a<$core.List<$core.int>>(4, 'data', $pb.PbFieldType.OY)
     ..a<$core.List<$core.int>>(5, 'AuthKeyHash', $pb.PbFieldType.OY, protoName: 'AuthKeyHash')
+    ..a<$core.int>(6, 'pingInterval', $pb.PbFieldType.O3, protoName: 'pingInterval')
+    ..a<$core.int>(7, 'pingTimeout', $pb.PbFieldType.O3, protoName: 'pingTimeout')
     ..hasRequiredFields = false
   ;
 
@@ -83,6 +85,24 @@ class Proto extends $pb.GeneratedMessage {
   $core.bool hasAuthKeyHash() => $_has(4);
   @$pb.TagNumber(5)
   void clearAuthKeyHash() => clearField(5);
+
+  @$pb.TagNumber(6)
+  $core.int get pingInterval => $_getIZ(5);
+  @$pb.TagNumber(6)
+  set pingInterval($core.int v) { $_setSignedInt32(5, v); }
+  @$pb.TagNumber(6)
+  $core.bool hasPingInterval() => $_has(5);
+  @$pb.TagNumber(6)
+  void clearPingInterval() => clearField(6);
+
+  @$pb.TagNumber(7)
+  $core.int get pingTimeout => $_getIZ(6);
+  @$pb.TagNumber(7)
+  set pingTimeout($core.int v) { $_setSignedInt32(6, v); }
+  @$pb.TagNumber(7)
+  $core.bool hasPingTimeout() => $_has(6);
+  @$pb.TagNumber(7)
+  void clearPingTimeout() => clearField(7);
 }
 
 class Response extends $pb.GeneratedMessage {

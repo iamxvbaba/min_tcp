@@ -4,20 +4,19 @@
 
 import 'dart:async';
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:logging/logging.dart';
 import 'package:min_tcp/engine/transport.dart';
+import 'package:min_tcp/proto/abridged.pb.dart';
 
 import '../proto/abridged.pbenum.dart';
 
-
 class TcpTransport extends Transport {
-  static final Logger _logger =
-  Logger('socket_io_client:transport.WebSocketTransport');
+  static final Logger _logger = Logger('min_tcp:transport.TCPTransport');
 
   @override
   String name = 'tcp';
   Socket _socket;
-
 
   TcpTransport(Map opts) : super(opts);
 
@@ -25,22 +24,37 @@ class TcpTransport extends Transport {
   void doOpen() {
     print("this.hostname:${this.hostname},this.port:${this.port}");
 
-    Socket.connect(this.hostname,this.port).then((Socket sock) {
-      this.socket = sock;
+    Socket.connect(this.hostname, this.port).then((Socket sock) {
+      this._socket = sock;
+      //首次必须先发送 0xaa
+      firstByte();
       addEventListeners();
+
+      // emit open
+      Proto p = new Proto();
+      p.op = OP.open;
+      emit(OP.packet,p);
+
     }).catchError((e) {
       onError(e);
+      print("cnm!!!!!!! 1 e:$e");
     });
+  }
+
+// connect after first byte
+  void firstByte() {
+    var message = Uint8List(1);
+    var bytedata = ByteData.view(message.buffer);
+    bytedata.setUint8(0, 0xaa);
+    _socket.add(message);
   }
 
   /// Adds event listeners to the socket
   ///
   /// @api private
   void addEventListeners() {
-    _socket.listen((data) =>onData(data));
-    _socket.handleError((e){
-      onError('tcp error:$e');
-    });
+    onOpen();
+    this._socket.listen((data) => onData(data));
   }
 
   /// Writes data to socket.
@@ -59,7 +73,8 @@ class TcpTransport extends Transport {
         emit(OP.drain);
       });
     };
-    _socket.add(packets);
+    this._socket.add(packets);
+    done();
   }
 
   /// Closes socket.
@@ -67,6 +82,7 @@ class TcpTransport extends Transport {
   /// @api private
   @override
   void doClose() {
-    _socket?.close();
+    print("=====close=====");
+    this._socket?.close();
   }
 }

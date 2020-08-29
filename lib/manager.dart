@@ -2,12 +2,12 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:logging/logging.dart';
+import 'package:min_tcp/proto/abridged.pb.dart';
 import 'package:min_tcp/proto/abridged.pbenum.dart';
 
 import 'engine/operator.dart';
 import './engine/socket.dart' as engine_socket;
 import 'on.dart' as util;
-import 'on.dart';
 import 'socket.dart';
 
 final Logger _logger = Logger('min_tcp:Manager');
@@ -61,7 +61,7 @@ class Manager extends EventEmitter {
         min: reconnectionDelay,
         max: reconnectionDelayMax,
         jitter: randomizationFactor);
-    timeout = options['timeout'] ?? 20000;
+    timeout = options['timeout'] ?? 10000;
     readyState = 'closed';
 
     this.hostname = hostname;
@@ -92,7 +92,7 @@ class Manager extends EventEmitter {
   /// @api private
   ///
   void updateSocketIds() {
-    conn.id = "only";
+    conn.id = 0;
   }
 
 
@@ -195,6 +195,7 @@ class Manager extends EventEmitter {
 
     // emit `open`
     var openSub = util.on(socket, OP.open, (_) {
+      print("------------ON OPEN");
       onopen();
       if (callback != null) callback();
     });
@@ -219,18 +220,23 @@ class Manager extends EventEmitter {
     // emit `connect_timeout`
     if (_timeout != null) {
       var timeout = _timeout;
-      _logger.fine('connect attempt will timeout after $timeout');
+      print('1.connect attempt will timeout after $timeout');
 
       // set timer
       var timer = Timer(Duration(milliseconds: timeout), () {
-        _logger.fine('connect attempt timed out after $timeout');
+        print('2.connect attempt timed out after $timeout');
         openSub.destroy();
         socket.close();
-        socket.emit(OP.error,"连接失败");
-        emitAll(OP.connect_timeout,"连接超时");
+        Proto p = new Proto();
+        p.op = OP.error;
+        socket.emit(OP.error,p);
+        emitAll(OP.connect_timeout,p);
       });
 
-      subs.add(util.Destroyable(() => timer?.cancel()));
+      subs.add(util.Destroyable(() {
+        print("连接成功，取消定时器");
+        timer?.cancel();
+      }));
     }
 
     subs.add(openSub);
@@ -280,7 +286,9 @@ class Manager extends EventEmitter {
   /// @api private
   ///
   void onpong([_]) {
-    emitAll(OP.pong, DateTime.now().millisecondsSinceEpoch - lastPing);
+    print("=============onpong==============");
+    Proto p = new Proto();
+    emitAll(OP.pong, p); // DateTime.now().millisecondsSinceEpoch - lastPing, 传这个值过去
   }
 
   ///
@@ -331,7 +339,7 @@ class Manager extends EventEmitter {
       conn = socket;
       socket.on(OP.connecting, onConnecting);
       socket.on(OP.connect, (_) {
-        socket.id = "only";
+        socket.id = 0;
       });
 
       if (autoConnect) {
@@ -361,32 +369,14 @@ class Manager extends EventEmitter {
   /// @param {Object} packet
   /// @api private
   ///
-  void packet(Map packet) {
+  void packet(Proto packet) {
     _logger.fine('writing packet $packet');
     _logger.fine("encoding $encoding");
 
-    if (encoding != true) {
-      engine.write(packet['data'], packet['options']);
-      encoding = false;
-      processPacketQueue();
-    } else {
-      // add packet to the queue
-      packetBuffer.add(packet);
-    }
+    // add packet to the queue
+    packetBuffer.add(packet);
   }
 
-  ///
-  /// If packet buffer is non-empty, begins encoding the
-  /// next packet in line.
-  ///
-  /// @api private
-  ///
-  void processPacketQueue() {
-    if (packetBuffer.isNotEmpty && encoding != true) {
-      var pack = packetBuffer.removeAt(0);
-      packet(pack);
-    }
-  }
 
   ///
   /// Clean up transport subscriptions and packet buffer.
@@ -394,7 +384,7 @@ class Manager extends EventEmitter {
   /// @api private
   ///
   void cleanup() {
-    _logger.fine('cleanup');
+    print('cleanup events');
 
     var subsLength = subs.length;
     for (var i = 0; i < subsLength; i++) {
@@ -439,9 +429,10 @@ class Manager extends EventEmitter {
     cleanup();
     backoff.reset();
     readyState = 'closed';
-    emit(OP.close, error['reason']);
+    emit(OP.close);
 
     if (_reconnection && !skipReconnect) {
+      print("closed ----> reconnect");
       reconnect();
     }
   }
@@ -452,44 +443,44 @@ class Manager extends EventEmitter {
   /// @api private
   ///
   Manager reconnect() {
-    if (reconnecting || skipReconnect) return this;
+    print("=====reconnect=====");
+    if (reconnecting || skipReconnect){
+      print("return this");
+      return this;
+    }
 
     if (backoff.attempts >= _reconnectionAttempts) {
-      _logger.fine('reconnect failed');
       print('reconnect failed');
-
       backoff.reset();
       emitAll(OP.reconnect_failed);
       reconnecting = false;
     } else {
       var delay = backoff.duration;
-      _logger.fine('will wait %dms before reconnect attempt', delay);
-
       reconnecting = true;
       var timer = Timer(Duration(milliseconds: delay), () {
         if (skipReconnect) return;
 
-        _logger.fine('attempting reconnect');
-        emitAll(OP.reconnect_attempt, backoff.attempts);
-        emitAll(OP.reconnecting, backoff.attempts);
+
+        emitAll(OP.reconnect_attempt); // backoff.attempts
+        emitAll(OP.reconnecting); // backoff.attempts
 
         // check again for the case socket closed in above events
         if (skipReconnect) return;
 
         open(callback: ([err]) {
           if (err != null) {
-            _logger.fine('reconnect attempt error');
+            print("【reconnect error:$err】");
             reconnecting = false;
             reconnect();
-            emitAll(OP.reconnect_error, err['data']);
+            emitAll(OP.reconnect_error);
           } else {
-            _logger.fine('reconnect success');
+            print('【reconnect success】');
             onreconnect();
           }
         });
       });
 
-      subs.add(Destroyable(() => timer.cancel()));
+      subs.add(util.Destroyable(() => timer.cancel()));
     }
     return this;
   }
@@ -504,7 +495,7 @@ class Manager extends EventEmitter {
     reconnecting = false;
     backoff.reset();
     updateSocketIds();
-    emitAll(OP.reconnect, attempt);
+    emitAll(OP.reconnect);
   }
 }
 
