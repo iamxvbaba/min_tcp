@@ -24,7 +24,6 @@ class EventEmitter {
   /// This function triggers all the handlers currently listening
   /// to [event] and passes them [data].
   void emit(OP op, [dynamic data]) {
-    print("this:$this op:$op");
     final list0 = this._events[op];
     final list = list0 != null ? new List.from(list0) : null;
     list?.forEach((handler) {

@@ -99,7 +99,6 @@ abstract class Transport extends EventEmitter {
     ByteData dataBuffer = ByteData.view(data.buffer);
     int length = dataBuffer.getUint32(0);
     Proto p = Proto.fromBuffer(data.sublist(4,4+length));
-
     emit(OP.packet, p);
   }
 

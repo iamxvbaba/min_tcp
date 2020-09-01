@@ -79,7 +79,7 @@ class Socket extends EventEmitter {
   /// Sets the current transport. Disables the existing one (if any).
   ///
   /// @api private
-  void setTransport(transport) {
+  void setTransport(Transport transport) {
     _logger.fine('setting transport ${transport?.name}');
 
     if (this.transport != null) {
@@ -145,6 +145,7 @@ class Socket extends EventEmitter {
           onHandshake(p ?? 'null');
           break;
         case OP.pong:
+          // 收到PONG之后 重新设置 ping
           setPing();
           emit(OP.pong);
           break;

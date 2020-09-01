@@ -297,6 +297,7 @@ class Manager extends EventEmitter {
   /// @api private
   ///
   void ondata(data) {
+    print("manager on data");
     //decoder.add(data);
   }
 
