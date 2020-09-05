@@ -40,7 +40,7 @@ class Socket extends EventEmitter {
   Map opts;
 
   Manager io;
-  Socket json;
+  Socket sock;
   num ids;
   Map acks;
   bool connected;
@@ -53,7 +53,7 @@ class Socket extends EventEmitter {
   num id;
 
   Socket(this.io, this.hostname,this.port, this.opts) {
-    json = this; // compat
+    sock = this; // compat
     ids = 0;
     acks = {};
     receiveBuffer = [];
@@ -189,19 +189,7 @@ class Socket extends EventEmitter {
         onconnect();
         break;
 
-      //case EVENT:
-        onevent(packet);
-        break;
-
-      //case BINARY_EVENT:
-        onevent(packet);
-        break;
-
       case OP.ack:
-        onack(packet);
-        break;
-
-      //case BINARY_ACK:
         onack(packet);
         break;
 
@@ -212,6 +200,10 @@ class Socket extends EventEmitter {
       case OP.error:
         emit(OP.error, packet);
         break;
+      default:
+        // super._events
+        super.emit(packet.op,packet);
+        //Function.apply(super.emit, [packet.op,packet]);
     }
   }
 

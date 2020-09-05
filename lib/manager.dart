@@ -296,21 +296,11 @@ class Manager extends EventEmitter {
   ///
   /// @api private
   ///
-  void ondata(data) {
-    print("manager on data");
-    //decoder.add(data);
+  void ondata(Proto data) {
+    print("manager on data =========== op:${data.op}");
+    emit(OP.packet, data);
   }
 
-  ///
-  /// Called when parser fully decodes a packet.
-  ///
-  /// @api private
-  ///
-  void ondecoded(packet) {
-    emit(OP.packet, packet);
-  }
-
-  ///
   /// Called upon socket error.
   ///
   /// @api private

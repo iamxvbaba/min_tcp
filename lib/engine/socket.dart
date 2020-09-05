@@ -153,8 +153,7 @@ class Socket extends EventEmitter {
         case OP.error:
           onError({'error': 'server error'});
           break;
-
-        case OP.message:
+        default:
           emit(OP.data, p);
           emit(OP.message, p);
           break;

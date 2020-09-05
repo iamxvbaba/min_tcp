@@ -34,7 +34,6 @@ class TcpTransport extends Transport {
       Proto p = new Proto();
       p.op = OP.open;
       emit(OP.packet,p);
-
     }).catchError((e) {
       onError(e);
       print("cnm!!!!!!! 1 e:$e");
